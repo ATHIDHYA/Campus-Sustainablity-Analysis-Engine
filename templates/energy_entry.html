@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}Energy Entry{% endblock %}
+
+{% block content %}
+<div class="card">
+    <h2>⚡ Energy Consumption</h2>
+
+    <form method="post">
+        <input type="number" step="0.01" name="value" placeholder="Energy (kWh)" required>
+        <input type="number" name="month" placeholder="Month (1-12)" required>
+        <input type="number" name="year" placeholder="Year" required>
+        <button type="submit">Save</button>
+    </form>
+</div>
+{% endblock %}

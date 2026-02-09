@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}Greenery Entry{% endblock %}
+
+{% block content %}
+<div class="card">
+    <h2>🌳 Green Cover</h2>
+
+    <form method="post">
+        <input type="number" step="0.01" name="value" placeholder="Green Area (sq.m)" required>
+        <input type="number" name="month" placeholder="Month" required>
+        <input type="number" name="year" placeholder="Year" required>
+        <button type="submit">Save</button>
+    </form>
+</div>
+{% endblock %}

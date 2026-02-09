@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}Water Entry{% endblock %}
+
+{% block content %}
+<div class="card">
+    <h2>💧 Water Usage</h2>
+
+    <form method="post">
+        <input type="number" step="0.01" name="value" placeholder="Water (liters)" required>
+        <input type="number" name="month" placeholder="Month" required>
+        <input type="number" name="year" placeholder="Year" required>
+        <button type="submit">Save</button>
+    </form>
+</div>
+{% endblock %}
