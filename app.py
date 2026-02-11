@@ -2,11 +2,13 @@ from flask import (
     Flask, render_template, request,
     redirect, url_for, session, send_file
 )
+import numpy as np
 from database import get_connection
 import hashlib
 import pandas as pd
 from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
+import json
 import os
 
 app = Flask(__name__)
@@ -62,23 +64,79 @@ def dashboard():
 
     conn = get_connection()
     cursor = conn.cursor()
+
     cursor.execute("""
         SELECT month || '-' || year AS label, total_score
         FROM sustainability_scores
         ORDER BY year, month
     """)
     rows = cursor.fetchall()
-    conn.close()
 
     labels = [r["label"] for r in rows]
     scores = [r["total_score"] for r in rows]
+
+    # ---------- KPI ----------
+    def get_avg(table):
+        cursor.execute(f"SELECT AVG(value) as avg FROM {table}")
+        result = cursor.fetchone()["avg"]
+        return round(result, 2) if result else 0
+
+    avg_energy = get_avg("energy_data")
+    avg_water = get_avg("water_data")
+    avg_waste = get_avg("waste_data")
+    avg_greenery = get_avg("greenery_data")
+
+    overall_score = round(sum(scores) / len(scores), 2) if scores else 0
+
+    # ---------- Grade ----------
+    if overall_score >= 85:
+        grade = "A"
+    elif overall_score >= 70:
+        grade = "B"
+    elif overall_score >= 50:
+        grade = "C"
+    else:
+        grade = "D"
+
+    # ---------- Prediction ----------
+    predicted_score = None
+    trend = "Stable"
+
+    labels_with_prediction = labels.copy()
+    scores_with_prediction = scores.copy()
+
+    if len(scores) >= 2:
+        x = np.arange(len(scores))
+        y = np.array(scores)
+
+        m, b = np.polyfit(x, y, 1)
+        predicted_score = round(m * len(scores) + b, 2)
+
+        if predicted_score > scores[-1]:
+            trend = "Improving 📈"
+        elif predicted_score < scores[-1]:
+            trend = "Declining 📉"
+
+        next_label = "Next"
+        labels_with_prediction.append(next_label)
+        scores_with_prediction.append(predicted_score)
+
+    conn.close()
 
     return render_template(
         "dashboard.html",
         username=session["username"],
         role=session["role"],
-        labels=labels,
-        scores=scores
+        labels=json.dumps(labels_with_prediction),
+        scores=json.dumps(scores_with_prediction),
+        avg_energy=avg_energy,
+        avg_water=avg_water,
+        avg_waste=avg_waste,
+        avg_greenery=avg_greenery,
+        overall_score=overall_score,
+        grade=grade,
+        predicted_score=predicted_score,
+        trend=trend
     )
 
 
@@ -104,7 +162,7 @@ def energy_entry():
                     request.form["value"],
                     request.form["month"],
                     request.form["year"])
-        return "✅ Energy data saved"
+        return redirect(url_for("dashboard"))
 
     return render_template("energy_entry.html")
 
@@ -119,7 +177,7 @@ def water_entry():
                     request.form["value"],
                     request.form["month"],
                     request.form["year"])
-        return "✅ Water data saved"
+        return redirect(url_for("dashboard"))
 
     return render_template("water_entry.html")
 
@@ -134,7 +192,7 @@ def waste_entry():
                     request.form["value"],
                     request.form["month"],
                     request.form["year"])
-        return "✅ Waste data saved"
+        return redirect(url_for("dashboard"))
 
     return render_template("waste_entry.html")
 
@@ -149,12 +207,12 @@ def greenery_entry():
                     request.form["value"],
                     request.form["month"],
                     request.form["year"])
-        return "✅ Greenery data saved"
+        return redirect(url_for("dashboard"))
 
     return render_template("greenery_entry.html")
 
 
-# -------------------- SCORE CALCULATION --------------------
+# -------------------- CALCULATE SCORE --------------------
 @app.route("/calculate_score/<int:month>/<int:year>")
 def calculate_score(month, year):
     if "user_id" not in session:
@@ -168,8 +226,8 @@ def calculate_score(month, year):
             f"SELECT AVG(value) as avg FROM {table} WHERE month=? AND year=?",
             (month, year)
         )
-        r = cursor.fetchone()
-        return r["avg"] if r["avg"] else 0
+        r = cursor.fetchone()["avg"]
+        return r if r else 0
 
     energy = avg("energy_data")
     water = avg("water_data")
@@ -200,7 +258,7 @@ def calculate_score(month, year):
     conn.commit()
     conn.close()
 
-    return f"<h3>Total Sustainability Score: {total}</h3><a href='/dashboard'>Back</a>"
+    return redirect(url_for("dashboard"))
 
 
 # -------------------- EXCEL UPLOAD --------------------
@@ -213,13 +271,13 @@ def upload_sustainability_excel():
         file = request.files["file"]
 
         if not file or not file.filename.endswith(".xlsx"):
-            return "❌ Please upload a valid Excel (.xlsx) file"
+            return "❌ Upload valid .xlsx file"
 
         df = pd.read_excel(file)
 
         required_cols = {"month", "year", "energy", "water", "waste", "greenery"}
         if not required_cols.issubset(df.columns):
-            return "❌ Excel must contain month, year, energy, water, waste, greenery"
+            return "❌ Invalid Excel format"
 
         conn = get_connection()
         cursor = conn.cursor()
@@ -228,39 +286,11 @@ def upload_sustainability_excel():
             month = int(row["month"])
             year = int(row["year"])
 
-            # ✅ Prevent duplicate score entry
-            cursor.execute("""
-                SELECT 1 FROM sustainability_scores
-                WHERE month=? AND year=?
-            """, (month, year))
-
-            if cursor.fetchone():
-                continue  # skip already calculated month/year
-
             energy = float(row["energy"])
             water = float(row["water"])
             waste = float(row["waste"])
             greenery = float(row["greenery"])
 
-            # ---- Insert raw data ----
-            cursor.execute(
-                "INSERT INTO energy_data (value, month, year, entered_by) VALUES (?, ?, ?, ?)",
-                (energy, month, year, session["user_id"])
-            )
-            cursor.execute(
-                "INSERT INTO water_data (value, month, year, entered_by) VALUES (?, ?, ?, ?)",
-                (water, month, year, session["user_id"])
-            )
-            cursor.execute(
-                "INSERT INTO waste_data (value, month, year, entered_by) VALUES (?, ?, ?, ?)",
-                (waste, month, year, session["user_id"])
-            )
-            cursor.execute(
-                "INSERT INTO greenery_data (value, month, year, entered_by) VALUES (?, ?, ?, ?)",
-                (greenery, month, year, session["user_id"])
-            )
-
-            # ---- Auto-calculate scores ----
             energy_score = max(0, 100 - energy / 10)
             water_score = max(0, 100 - water / 10)
             waste_score = max(0, 100 - waste / 5)
@@ -271,7 +301,7 @@ def upload_sustainability_excel():
             )
 
             cursor.execute("""
-                INSERT INTO sustainability_scores
+                INSERT OR REPLACE INTO sustainability_scores
                 (month, year, energy_score, water_score, waste_score, greenery_score, total_score)
                 VALUES (?, ?, ?, ?, ?, ?, ?)
             """, (
@@ -282,46 +312,9 @@ def upload_sustainability_excel():
         conn.commit()
         conn.close()
 
-        return "✅ Excel uploaded, duplicates skipped & scores calculated!"
+        return redirect(url_for("dashboard"))
 
     return render_template("upload_sustainability_excel.html")
-
-
-# -------------------- PDF REPORT --------------------
-@app.route("/report/<int:year>")
-def generate_report(year):
-    if "user_id" not in session:
-        return redirect(url_for("login"))
-
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute("""
-        SELECT month, total_score
-        FROM sustainability_scores
-        WHERE year=?
-        ORDER BY month
-    """, (year,))
-    rows = cursor.fetchall()
-    conn.close()
-
-    if not rows:
-        return "❌ No data available"
-
-    filename = f"sustainability_report_{year}.pdf"
-    c = canvas.Canvas(filename, pagesize=A4)
-    y = 800
-
-    c.setFont("Helvetica-Bold", 16)
-    c.drawString(50, y, "Campus Sustainability Report")
-    y -= 40
-
-    c.setFont("Helvetica", 10)
-    for r in rows:
-        c.drawString(50, y, f"Month {r['month']} → Score: {r['total_score']}")
-        y -= 20
-
-    c.save()
-    return send_file(filename, as_attachment=True)
 
 
 # -------------------- ADMIN --------------------
@@ -343,27 +336,24 @@ def add_user():
         )
         conn.commit()
         conn.close()
-        return "✅ User added"
+        return redirect(url_for("dashboard"))
 
     return render_template("add_user.html")
 
-@app.route("/download_excel_template")
-def download_excel_template():
-    import pandas as pd
 
-    df = pd.DataFrame({
-        "month": [1],
-        "year": [2025],
-        "energy": [1200],
-        "water": [800],
-        "waste": [300],
-        "greenery": [150]
-    })
+@app.route("/manage_users")
+def manage_users():
+    if "user_id" not in session or session["role"] != "admin":
+        return "❌ Access denied"
 
-    file_name = "sustainability_template.xlsx"
-    df.to_excel(file_name, index=False)
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT id, username, role FROM users")
+    users = cursor.fetchall()
+    conn.close()
 
-    return send_file(file_name, as_attachment=True)
+    return render_template("manage_users.html", users=users)
+
 
 # -------------------- RUN --------------------
 if __name__ == "__main__":

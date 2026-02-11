@@ -17,4 +17,10 @@
         Required columns: <b>month, year, energy, water, waste, greenery</b>
     </p>
 </div>
+{% if avg_uploaded %}
+<div class="success-box">
+    <h3>📊 Average Score from Uploaded Data: {{ avg_uploaded }}</h3>
+</div>
+{% endif %}
+
 {% endblock %}
