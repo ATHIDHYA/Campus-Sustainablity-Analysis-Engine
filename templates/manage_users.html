@@ -3,11 +3,25 @@
 
 <h2>👥 User Management</h2>
 
-<table border="1" cellpadding="10">
+<form method="GET">
+    <input type="text" name="search" placeholder="Search username" value="{{ search }}">
+    <button type="submit">Search</button>
+</form>
+
+<br>
+
+<table border="1" cellpadding="8" cellspacing="0">
     <tr>
         <th>ID</th>
         <th>Username</th>
         <th>Role</th>
+        <th>Total Entries</th>
+        <th>Energy</th>
+        <th>Water</th>
+        <th>Waste</th>
+        <th>Greenery</th>
+        <th>Activity Logs</th>
+        <th>Actions</th>
     </tr>
 
     {% for user in users %}
@@ -15,6 +29,27 @@
         <td>{{ user.id }}</td>
         <td>{{ user.username }}</td>
         <td>{{ user.role }}</td>
+
+        <td>
+            {{ user.energy_count + user.water_count + user.waste_count + user.greenery_count }}
+        </td>
+
+        <td>{{ user.energy_count }}</td>
+        <td>{{ user.water_count }}</td>
+        <td>{{ user.waste_count }}</td>
+        <td>{{ user.greenery_count }}</td>
+        <td>{{ user.activity_count }}</td>
+
+        <td>
+            <a href="{{ url_for('manageuser.reset_password', user_id=user.id) }}">
+                🔒 Reset
+            </a>
+            |
+            <a href="{{ url_for('manageuser.delete_user', user_id=user.id) }}"
+               onclick="return confirm('Are you sure?')">
+                🗑 Delete
+            </a>
+        </td>
     </tr>
     {% endfor %}
 </table>

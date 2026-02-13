@@ -1,3 +1,5 @@
+from manageuser import manageuser_bp
+from dataentry import dataentry_bp
 from flask import (
     Flask, render_template, request,
     redirect, url_for, session, send_file
@@ -11,16 +13,54 @@ from reportlab.pdfgen import canvas
 import json
 import os
 
-app = Flask(__name__)
-app.secret_key = "super_secret_key"
+app = Flask(__name__, template_folder="templates")
+app.secret_key = os.environ.get("SECRET_KEY", "dev_secret")
+app.register_blueprint(manageuser_bp)
+app.register_blueprint(dataentry_bp)
 
+
+ALLOWED_TABLES = {
+    "energy_data",
+    "water_data",
+    "waste_data",
+    "greenery_data"
+}
 
 # -------------------- HELPERS --------------------
+
 def hash_password(password):
     return hashlib.sha256(password.encode()).hexdigest()
 
 
+def log_activity(action):
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        "INSERT INTO activity_logs (user_id, action) VALUES (?, ?)",
+        (session["user_id"], action)
+    )
+    conn.commit()
+    conn.close()
+
+
+def insert_data(table, value, month, year):
+    if table not in ALLOWED_TABLES:
+        raise ValueError("Invalid table")
+
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        f"INSERT INTO {table} (value, month, year, entered_by) VALUES (?, ?, ?, ?)",
+        (value, month, year, session["user_id"])
+    )
+    conn.commit()
+    conn.close()
+
+    log_activity(f"Inserted into {table}")
+
+
 # -------------------- AUTH --------------------
+
 @app.route("/", methods=["GET", "POST"])
 def login():
     if "user_id" in session:
@@ -43,9 +83,10 @@ def login():
             session["user_id"] = user["id"]
             session["username"] = user["username"]
             session["role"] = user["role"]
+            log_activity("Logged in")
             return redirect(url_for("dashboard"))
 
-        return "❌ Invalid login"
+        return "Invalid login ❌"
 
     return render_template("login.html")
 
@@ -57,6 +98,7 @@ def logout():
 
 
 # -------------------- DASHBOARD --------------------
+
 @app.route("/dashboard")
 def dashboard():
     if "user_id" not in session:
@@ -75,11 +117,10 @@ def dashboard():
     labels = [r["label"] for r in rows]
     scores = [r["total_score"] for r in rows]
 
-    # ---------- KPI ----------
     def get_avg(table):
         cursor.execute(f"SELECT AVG(value) as avg FROM {table}")
-        result = cursor.fetchone()["avg"]
-        return round(result, 2) if result else 0
+        r = cursor.fetchone()["avg"]
+        return round(r, 2) if r else 0
 
     avg_energy = get_avg("energy_data")
     avg_water = get_avg("water_data")
@@ -88,17 +129,14 @@ def dashboard():
 
     overall_score = round(sum(scores) / len(scores), 2) if scores else 0
 
-    # ---------- Grade ----------
+    grade = "D"
     if overall_score >= 85:
         grade = "A"
     elif overall_score >= 70:
         grade = "B"
     elif overall_score >= 50:
         grade = "C"
-    else:
-        grade = "D"
 
-    # ---------- Prediction ----------
     predicted_score = None
     trend = "Stable"
 
@@ -108,7 +146,6 @@ def dashboard():
     if len(scores) >= 2:
         x = np.arange(len(scores))
         y = np.array(scores)
-
         m, b = np.polyfit(x, y, 1)
         predicted_score = round(m * len(scores) + b, 2)
 
@@ -117,15 +154,13 @@ def dashboard():
         elif predicted_score < scores[-1]:
             trend = "Declining 📉"
 
-        next_label = "Next"
-        labels_with_prediction.append(next_label)
+        labels_with_prediction.append("Next")
         scores_with_prediction.append(predicted_score)
 
     conn.close()
 
     return render_template(
         "dashboard.html",
-        username=session["username"],
         role=session["role"],
         labels=json.dumps(labels_with_prediction),
         scores=json.dumps(scores_with_prediction),
@@ -139,222 +174,177 @@ def dashboard():
         trend=trend
     )
 
-
-# -------------------- DATA ENTRY --------------------
-def insert_data(table, value, month, year):
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute(
-        f"INSERT INTO {table} (value, month, year, entered_by) VALUES (?, ?, ?, ?)",
-        (value, month, year, session["user_id"])
-    )
-    conn.commit()
-    conn.close()
-
-
-@app.route("/energy", methods=["GET", "POST"])
-def energy_entry():
-    if "user_id" not in session:
-        return redirect(url_for("login"))
-
-    if request.method == "POST":
-        insert_data("energy_data",
-                    request.form["value"],
-                    request.form["month"],
-                    request.form["year"])
-        return redirect(url_for("dashboard"))
-
-    return render_template("energy_entry.html")
-
-
-@app.route("/water", methods=["GET", "POST"])
-def water_entry():
-    if "user_id" not in session:
-        return redirect(url_for("login"))
-
-    if request.method == "POST":
-        insert_data("water_data",
-                    request.form["value"],
-                    request.form["month"],
-                    request.form["year"])
-        return redirect(url_for("dashboard"))
-
-    return render_template("water_entry.html")
-
-
-@app.route("/waste", methods=["GET", "POST"])
-def waste_entry():
-    if "user_id" not in session:
-        return redirect(url_for("login"))
-
-    if request.method == "POST":
-        insert_data("waste_data",
-                    request.form["value"],
-                    request.form["month"],
-                    request.form["year"])
-        return redirect(url_for("dashboard"))
-
-    return render_template("waste_entry.html")
-
-
-@app.route("/greenery", methods=["GET", "POST"])
-def greenery_entry():
-    if "user_id" not in session:
-        return redirect(url_for("login"))
-
-    if request.method == "POST":
-        insert_data("greenery_data",
-                    request.form["value"],
-                    request.form["month"],
-                    request.form["year"])
-        return redirect(url_for("dashboard"))
-
-    return render_template("greenery_entry.html")
-
-
-# -------------------- CALCULATE SCORE --------------------
-@app.route("/calculate_score/<int:month>/<int:year>")
-def calculate_score(month, year):
-    if "user_id" not in session:
-        return redirect(url_for("login"))
-
-    conn = get_connection()
-    cursor = conn.cursor()
-
-    def avg(table):
-        cursor.execute(
-            f"SELECT AVG(value) as avg FROM {table} WHERE month=? AND year=?",
-            (month, year)
-        )
-        r = cursor.fetchone()["avg"]
-        return r if r else 0
-
-    energy = avg("energy_data")
-    water = avg("water_data")
-    waste = avg("waste_data")
-    greenery = avg("greenery_data")
-
-    energy_score = max(0, 100 - energy / 10)
-    water_score = max(0, 100 - water / 10)
-    waste_score = max(0, 100 - waste / 5)
-    greenery_score = min(100, greenery / 2)
-
-    total = round(
-        (energy_score + water_score + waste_score + greenery_score) / 4, 2
-    )
-
-    cursor.execute(
-        "DELETE FROM sustainability_scores WHERE month=? AND year=?",
-        (month, year)
-    )
-
-    cursor.execute("""
-        INSERT INTO sustainability_scores
-        (month, year, energy_score, water_score, waste_score, greenery_score, total_score)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-    """, (month, year,
-          energy_score, water_score, waste_score, greenery_score, total))
-
-    conn.commit()
-    conn.close()
-
-    return redirect(url_for("dashboard"))
-
-
 # -------------------- EXCEL UPLOAD --------------------
 @app.route("/upload_sustainability_excel", methods=["GET", "POST"])
 def upload_sustainability_excel():
     if "user_id" not in session:
         return redirect(url_for("login"))
 
+    avg_uploaded = None
+
     if request.method == "POST":
         file = request.files["file"]
 
-        if not file or not file.filename.endswith(".xlsx"):
-            return "❌ Upload valid .xlsx file"
+        if file and file.filename.endswith(".xlsx"):
+            df = pd.read_excel(file)
 
-        df = pd.read_excel(file)
+            conn = get_connection()
+            cursor = conn.cursor()
 
-        required_cols = {"month", "year", "energy", "water", "waste", "greenery"}
-        if not required_cols.issubset(df.columns):
-            return "❌ Invalid Excel format"
+            total_scores = []
 
-        conn = get_connection()
-        cursor = conn.cursor()
+            for _, row in df.iterrows():
+                month = int(row["month"])
+                year = int(row["year"])
+                energy = float(row["energy"])
+                water = float(row["water"])
+                waste = float(row["waste"])
+                greenery = float(row["greenery"])
 
-        for _, row in df.iterrows():
-            month = int(row["month"])
-            year = int(row["year"])
+                # INSERT RAW DATA (NO extra connection)
+                cursor.execute(
+                    "INSERT INTO energy_data (value, month, year, entered_by) VALUES (?, ?, ?, ?)",
+                    (energy, month, year, session["user_id"])
+                )
 
-            energy = float(row["energy"])
-            water = float(row["water"])
-            waste = float(row["waste"])
-            greenery = float(row["greenery"])
+                cursor.execute(
+                    "INSERT INTO water_data (value, month, year, entered_by) VALUES (?, ?, ?, ?)",
+                    (water, month, year, session["user_id"])
+                )
 
-            energy_score = max(0, 100 - energy / 10)
-            water_score = max(0, 100 - water / 10)
-            waste_score = max(0, 100 - waste / 5)
-            greenery_score = min(100, greenery / 2)
+                cursor.execute(
+                    "INSERT INTO waste_data (value, month, year, entered_by) VALUES (?, ?, ?, ?)",
+                    (waste, month, year, session["user_id"])
+                )
 
-            total_score = round(
-                (energy_score + water_score + waste_score + greenery_score) / 4, 2
-            )
+                cursor.execute(
+                    "INSERT INTO greenery_data (value, month, year, entered_by) VALUES (?, ?, ?, ?)",
+                    (greenery, month, year, session["user_id"])
+                )
 
-            cursor.execute("""
-                INSERT OR REPLACE INTO sustainability_scores
-                (month, year, energy_score, water_score, waste_score, greenery_score, total_score)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-            """, (
-                month, year,
-                energy_score, water_score, waste_score, greenery_score, total_score
-            ))
+                # CALCULATE SCORE
+                energy_score = max(0, 100 - energy / 10)
+                water_score = max(0, 100 - water / 10)
+                waste_score = max(0, 100 - waste / 5)
+                greenery_score = min(100, greenery / 2)
 
-        conn.commit()
-        conn.close()
+                total = round(
+                    (energy_score + water_score +
+                     waste_score + greenery_score) / 4, 2
+                )
 
-        return redirect(url_for("dashboard"))
+                total_scores.append(total)
 
-    return render_template("upload_sustainability_excel.html")
+                # Remove old score if exists
+                cursor.execute(
+                    "DELETE FROM sustainability_scores WHERE month=? AND year=?",
+                    (month, year)
+                )
 
+                cursor.execute("""
+                    INSERT INTO sustainability_scores
+                    (month, year, energy_score, water_score,
+                     waste_score, greenery_score, total_score)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                """, (month, year,
+                      energy_score, water_score,
+                      waste_score, greenery_score, total))
 
-# -------------------- ADMIN --------------------
-@app.route("/add_user", methods=["GET", "POST"])
-def add_user():
-    if "user_id" not in session or session["role"] != "admin":
-        return "❌ Access denied"
+            conn.commit()
+            conn.close()
 
-    if request.method == "POST":
-        conn = get_connection()
-        cursor = conn.cursor()
-        cursor.execute(
-            "INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?)",
-            (
-                request.form["username"],
-                hash_password(request.form["password"]),
-                request.form["role"]
-            )
-        )
-        conn.commit()
-        conn.close()
-        return redirect(url_for("dashboard"))
+            avg_uploaded = round(sum(total_scores) / len(total_scores), 2)
 
-    return render_template("add_user.html")
+    return render_template(
+        "upload_sustainability_excel.html",
+        avg_uploaded=avg_uploaded
+    )
 
+# -------------------- PDF EXPORT --------------------
 
-@app.route("/manage_users")
-def manage_users():
-    if "user_id" not in session or session["role"] != "admin":
-        return "❌ Access denied"
+@app.route("/export_pdf")
+def export_pdf():
+    if "user_id" not in session:
+        return redirect(url_for("login"))
 
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT id, username, role FROM users")
-    users = cursor.fetchall()
+    cursor.execute("""
+        SELECT month, year, total_score
+        FROM sustainability_scores
+        ORDER BY year, month
+    """)
+    rows = cursor.fetchall()
     conn.close()
 
-    return render_template("manage_users.html", users=users)
+    file_path = "report.pdf"
+    c = canvas.Canvas(file_path, pagesize=A4)
+    width, height = A4
+
+    y = height - 50
+    c.setFont("Helvetica", 12)
+    c.drawString(50, y, "Sustainability Report")
+    y -= 30
+
+    for r in rows:
+        c.drawString(
+            50, y,
+            f"Month: {r['month']}  Year: {r['year']}  Score: {r['total_score']}"
+        )
+        y -= 20
+
+    c.save()
+
+    return send_file(file_path, as_attachment=True)
+
+
+# -------------------- ADMIN --------------------
+
+@app.route("/add_user", methods=["GET", "POST"])
+def add_user():
+    if "user_id" not in session:
+        return redirect(url_for("login"))
+
+    if session["role"] != "admin":
+        return "Access Denied ❌"
+
+    error = None
+
+    if request.method == "POST":
+        username = request.form.get("username", "").strip()
+        password = request.form.get("password", "")
+        role = request.form.get("role", "")
+        print("FORM DATA:", request.form)
+
+        print("DEBUG:", username, password, role)
+
+        if not username or not password or not role:
+            error = "All fields are required ❌"
+            return render_template("add_user.html", error=error)
+
+        conn = get_connection()
+        cursor = conn.cursor()
+
+        cursor.execute("SELECT id FROM users WHERE username=?", (username,))
+        if cursor.fetchone():
+            conn.close()
+            error = "Username already exists ❌"
+            return render_template("add_user.html", error=error)
+
+        cursor.execute("""
+            INSERT INTO users (username, password_hash, role)
+            VALUES (?, ?, ?)
+        """, (username, hash_password(password), role))
+
+        conn.commit()
+        conn.close()
+
+        return redirect(url_for("add_user"))
+
+    return render_template("add_user.html", error=error)
 
 
 # -------------------- RUN --------------------
+
 if __name__ == "__main__":
     app.run(debug=True)

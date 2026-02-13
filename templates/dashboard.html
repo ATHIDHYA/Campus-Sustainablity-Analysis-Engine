@@ -56,19 +56,18 @@
     <div class="card menu">
         <h2>⚙ Actions</h2>
         <ul>
-            <li><a href="/energy">⚡ Energy Entry</a></li>
-            <li><a href="/water">💧 Water Entry</a></li>
-            <li><a href="/waste">🗑 Waste Entry</a></li>
-            <li><a href="/greenery">🌳 Greenery Entry</a></li>
-            <li><a href="/upload_sustainability_excel">📤 Upload Excel</a></li>
+            <li><a href="{{ url_for('dataentry.energy_entry') }}">⚡ Energy Entry</a></li>
+            <li><a href="{{ url_for('dataentry.water_entry') }}">💧 Water Entry</a></li>
+            <li><a href="{{ url_for('dataentry.waste_entry') }}">🗑 Waste Entry</a></li>
+            <li><a href="{{ url_for('dataentry.greenery_entry') }}">🌳 Greenery Entry</a></li>
 
             {% if role == "admin" %}
                 <li><a href="/add_user">👤 Add User</a></li>
-                <li><a href="/manage_users">👥 Manage Users</a></li>
+                <li><a href="{{ url_for('manageuser.manage_users') }}">👥 Manage Users</a></li>
 
             {% endif %}
 
-            <li><a href="/report/2025">📄 Download 2025 Report</a></li>
+            <li><a href="/export_pdf">📄 Download Report</a></li>
         </ul>
     </div>
 
