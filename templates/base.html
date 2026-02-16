@@ -4,6 +4,113 @@
     <title>{% block title %}Sustainability Analytics{% endblock %}</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+
+body {
+    font-family: 'Segoe UI', sans-serif;
+    background: #f4f6f9;
+    margin: 0;
+    padding: 0;
+}
+
+h2 {
+    margin-bottom: 20px;
+}
+
+.container {
+    padding: 30px;
+}
+
+/* Card */
+.card {
+    background: white;
+    padding: 25px;
+    border-radius: 12px;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+    margin-bottom: 25px;
+}
+
+/* Filter section */
+.filter-row {
+    display: flex;
+    gap: 15px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.filter-row input,
+.filter-row select {
+    padding: 8px 12px;
+    border-radius: 6px;
+    border: 1px solid #ccc;
+}
+
+.filter-row button {
+    padding: 8px 16px;
+    background: #2c7be5;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+}
+
+.filter-row button:hover {
+    background: #1a5edb;
+}
+
+/* Table */
+table {
+    width: 100%;
+    border-collapse: collapse;
+    background: white;
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+table th {
+    background: #2c7be5;
+    color: white;
+    padding: 12px;
+    text-align: left;
+}
+
+table td {
+    padding: 12px;
+    border-bottom: 1px solid #eee;
+}
+
+table tr:hover {
+    background: #f1f5ff;
+}
+
+/* Buttons */
+.action-btn {
+    padding: 6px 12px;
+    border-radius: 6px;
+    text-decoration: none;
+    font-size: 14px;
+}
+
+.edit-btn {
+    background: #f6c23e;
+    color: black;
+}
+
+.delete-btn {
+    background: #e74a3b;
+    color: white;
+}
+
+.edit-btn:hover {
+    background: #dda20a;
+}
+
+.delete-btn:hover {
+    background: #c0392b;
+}
+
+</style>
+
 </head>
 
 <body>

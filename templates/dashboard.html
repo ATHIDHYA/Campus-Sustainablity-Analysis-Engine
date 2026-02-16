@@ -3,6 +3,94 @@
 
 {% block content %}
 
+<style>
+body {
+    font-family: 'Segoe UI', sans-serif;
+    background: #f4f6f9;
+}
+
+/* KPI GRID */
+.kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 20px;
+    margin-bottom: 30px;
+}
+
+.kpi-card {
+    background: linear-gradient(135deg, #2c7be5, #4da3ff);
+    color: white;
+    padding: 20px;
+    border-radius: 12px;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+    transition: transform 0.2s;
+}
+
+.kpi-card:hover {
+    transform: translateY(-5px);
+}
+
+.kpi-card.highlight {
+    background: linear-gradient(135deg, #28a745, #5ddf83);
+}
+
+.kpi-card h3 {
+    margin-bottom: 10px;
+    font-size: 16px;
+}
+
+.kpi-card p {
+    font-size: 22px;
+    font-weight: bold;
+}
+
+/* MAIN GRID */
+.dashboard-grid {
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    gap: 25px;
+}
+
+.card {
+    background: white;
+    padding: 25px;
+    border-radius: 12px;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.05);
+}
+
+/* MENU */
+.menu ul {
+    list-style: none;
+    padding: 0;
+}
+
+.menu ul li {
+    margin-bottom: 12px;
+}
+
+.menu ul li a {
+    text-decoration: none;
+    display: block;
+    padding: 10px 14px;
+    background: #f1f5ff;
+    border-radius: 8px;
+    color: #2c3e50;
+    transition: 0.2s;
+}
+
+.menu ul li a:hover {
+    background: #2c7be5;
+    color: white;
+}
+
+/* Responsive */
+@media (max-width: 900px) {
+    .dashboard-grid {
+        grid-template-columns: 1fr;
+    }
+}
+</style>
+
 <!-- ================= KPI SECTION ================= -->
 <div class="kpi-grid">
 
@@ -35,13 +123,14 @@
         <h3>🏆 Grade</h3>
         <p>{{ grade }}</p>
     </div>
-                {% if predicted_score %}
-<div class="kpi-card highlight">
-    <h3>🔮 Next Month Prediction</h3>
-    <p>{{ predicted_score }}</p>
-    <small>{{ trend }}</small>
-</div>
-{% endif %}
+
+    {% if predicted_score %}
+    <div class="kpi-card highlight">
+        <h3>🔮 Next Month Prediction</h3>
+        <p>{{ predicted_score }}</p>
+        <small>{{ trend }}</small>
+    </div>
+    {% endif %}
 
 </div>
 
@@ -54,19 +143,18 @@
     </div>
 
     <div class="card menu">
-        <h2>⚙ Actions</h2>
+        <h2>⚙ Quick Actions</h2>
         <ul>
             <li><a href="{{ url_for('dataentry.energy_entry') }}">⚡ Energy Entry</a></li>
             <li><a href="{{ url_for('dataentry.water_entry') }}">💧 Water Entry</a></li>
             <li><a href="{{ url_for('dataentry.waste_entry') }}">🗑 Waste Entry</a></li>
             <li><a href="{{ url_for('dataentry.greenery_entry') }}">🌳 Greenery Entry</a></li>
-            <!-- ADD THIS -->
             <li><a href="{{ url_for('upload_sustainability_excel') }}">📤 Upload Excel</a></li>
 
             {% if role == "admin" %}
                 <li><a href="/add_user">👤 Add User</a></li>
                 <li><a href="{{ url_for('manageuser.manage_users') }}">👥 Manage Users</a></li>
-
+                <li><a href="{{ url_for('dataentry.view_entries') }}">📋 View Entries</a></li>
             {% endif %}
 
             <li><a href="/export_pdf">📄 Download Report</a></li>
@@ -86,17 +174,27 @@ new Chart(ctx, {
         datasets: [{
             label: 'Sustainability Score',
             data: {{ scores | safe }},
-            tension: 0.3,
-            fill: false
+            tension: 0.4,
+            fill: true,
+            backgroundColor: "rgba(44,123,229,0.2)",
+            borderColor: "#2c7be5"
         }]
     },
     options: {
+        responsive: true,
+        plugins: {
+            legend: {
+                labels: { font: { size: 14 } }
+            }
+        },
         scales: {
-            y: { beginAtZero: true, max: 100 }
+            y: {
+                beginAtZero: true,
+                max: 100
+            }
         }
     }
 });
 </script>
-
 
 {% endblock %}

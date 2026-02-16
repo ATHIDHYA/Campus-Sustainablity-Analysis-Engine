@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block content %}
+
+<h2>✏ Edit Entry</h2>
+
+<form method="post">
+    <label>Value:</label>
+    <input type="number" step="0.01" name="value" value="{{ entry.value }}" required><br><br>
+
+    <label>Month:</label>
+    <input type="number" name="month" value="{{ entry.month }}" required><br><br>
+
+    <label>Year:</label>
+    <input type="number" name="year" value="{{ entry.year }}" required><br><br>
+
+    <button type="submit">Update</button>
+</form>
+
+{% endblock %}

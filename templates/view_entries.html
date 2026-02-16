@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="container">
+
+    <div class="card">
+        <h2>📋 View Entries</h2>
+
+        <form method="get" class="filter-row">
+            <select name="type">
+                <option value="energy_data" {% if selected_table == "energy_data" %}selected{% endif %}>Energy</option>
+                <option value="water_data" {% if selected_table == "water_data" %}selected{% endif %}>Water</option>
+                <option value="waste_data" {% if selected_table == "waste_data" %}selected{% endif %}>Waste</option>
+                <option value="greenery_data" {% if selected_table == "greenery_data" %}selected{% endif %}>Greenery</option>
+            </select>
+
+            <input type="number" name="month" placeholder="Month"
+                   value="{{ selected_month or '' }}" min="1" max="12">
+
+            <input type="number" name="year" placeholder="Year"
+                   value="{{ selected_year or '' }}">
+
+            <button type="submit">Filter</button>
+        </form>
+    </div>
+
+    <div class="card">
+        <table>
+            <tr>
+                <th>ID</th>
+                <th>Value</th>
+                <th>Month</th>
+                <th>Year</th>
+                <th>Entered By</th>
+                <th>Actions</th>
+            </tr>
+
+            {% for e in entries %}
+            <tr>
+                <td>{{ e.id }}</td>
+                <td>{{ e.value }}</td>
+                <td>{{ e.month }}</td>
+                <td>{{ e.year }}</td>
+                <td>{{ e.username }}</td>
+                <td>
+                    <a class="action-btn edit-btn"
+                       href="{{ url_for('dataentry.edit_entry', table=selected_table, id=e.id) }}">
+                       ✏ Edit
+                    </a>
+
+                    <a class="action-btn delete-btn"
+                       href="{{ url_for('dataentry.delete_entry', table=selected_table, id=e.id) }}"
+                       onclick="return confirm('Are you sure?')">
+                       🗑 Delete
+                    </a>
+                </td>
+            </tr>
+            {% endfor %}
+        </table>
+    </div>
+
+</div>
+
+{% endblock %}
