@@ -1,153 +1,144 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+    <meta charset="UTF-8">
     <title>{% block title %}Sustainability Analytics{% endblock %}</title>
+
+    <!-- Main CSS -->
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+
+    <!-- Chart.js -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
     <style>
+        body {
+            font-family: 'Segoe UI', sans-serif;
+            margin: 0;
+            background: #f4f6f9;
+            transition: background 0.3s, color 0.3s;
+        }
 
-body {
-    font-family: 'Segoe UI', sans-serif;
-    background: #f4f6f9;
-    margin: 0;
-    padding: 0;
-}
+        /* Navbar */
+        .navbar {
+            background: #2c7be5;
+            color: white;
+            padding: 15px 25px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
 
-h2 {
-    margin-bottom: 20px;
-}
+        .navbar a {
+            color: white;
+            margin-left: 18px;
+            text-decoration: none;
+            font-weight: 500;
+        }
 
-.container {
-    padding: 30px;
-}
+        .navbar a:hover {
+            text-decoration: underline;
+        }
 
-/* Card */
-.card {
-    background: white;
-    padding: 25px;
-    border-radius: 12px;
-    box-shadow: 0 4px 10px rgba(0,0,0,0.05);
-    margin-bottom: 25px;
-}
+        .container {
+            padding: 30px;
+            min-height: 80vh;
+        }
 
-/* Filter section */
-.filter-row {
-    display: flex;
-    gap: 15px;
-    align-items: center;
-    flex-wrap: wrap;
-}
+        /* Footer */
+        .footer {
+            text-align: center;
+            padding: 15px;
+            background: #f1f1f1;
+            font-size: 14px;
+            color: #666;
+        }
 
-.filter-row input,
-.filter-row select {
-    padding: 8px 12px;
-    border-radius: 6px;
-    border: 1px solid #ccc;
-}
+        /* Flash messages */
+        .flash {
+            padding: 12px;
+            margin-bottom: 15px;
+            border-radius: 6px;
+        }
 
-.filter-row button {
-    padding: 8px 16px;
-    background: #2c7be5;
-    color: white;
-    border: none;
-    border-radius: 6px;
-    cursor: pointer;
-}
+        .flash.success {
+            background: #d4edda;
+            color: #155724;
+        }
 
-.filter-row button:hover {
-    background: #1a5edb;
-}
+        .flash.error {
+            background: #f8d7da;
+            color: #721c24;
+        }
 
-/* Table */
-table {
-    width: 100%;
-    border-collapse: collapse;
-    background: white;
-    border-radius: 10px;
-    overflow: hidden;
-}
+        /* Dark mode */
+        body.dark {
+            background: #1e1e1e;
+            color: #f1f1f1;
+        }
 
-table th {
-    background: #2c7be5;
-    color: white;
-    padding: 12px;
-    text-align: left;
-}
+        body.dark .navbar {
+            background: #111;
+        }
 
-table td {
-    padding: 12px;
-    border-bottom: 1px solid #eee;
-}
-
-table tr:hover {
-    background: #f1f5ff;
-}
-
-/* Buttons */
-.action-btn {
-    padding: 6px 12px;
-    border-radius: 6px;
-    text-decoration: none;
-    font-size: 14px;
-}
-
-.edit-btn {
-    background: #f6c23e;
-    color: black;
-}
-
-.delete-btn {
-    background: #e74a3b;
-    color: white;
-}
-
-.edit-btn:hover {
-    background: #dda20a;
-}
-
-.delete-btn:hover {
-    background: #c0392b;
-}
-
-</style>
-
+        body.dark .footer {
+            background: #111;
+            color: #aaa;
+        }
+    </style>
 </head>
 
 <body>
 
-<div class="navbar">
-    <strong>🌱 Sustainability Analytics</strong>
-    {% if session.get("username") %}
+    <!-- Navbar -->
+    <div class="navbar">
+        <strong>🌱 Campus Sustainability Analytics</strong>
+
+        {% if session.get("username") %}
         <div>
             <span>{{ session.username }} ({{ session.role }})</span>
-            <a href="/dashboard">Dashboard</a>
-            <a href="/logout">Logout</a>
+            <a href="{{ url_for('dashboard') }}">Dashboard</a>
+            <a href="{{ url_for('logout') }}">Logout</a>
             <button onclick="toggleTheme()" style="margin-left:15px;">🌓</button>
         </div>
-    {% endif %}
-</div>
+        {% endif %}
+    </div>
 
-<div class="container">
-    {% block content %}{% endblock %}
-</div>
+    <!-- Main Content -->
+    <div class="container">
 
-<div class="footer">
-    Campus Sustainability Analytics • Developed by Athidhya
-</div>
+        <!-- Flash Messages -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="flash {{ category }}">
+                        {{ message }}
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
 
-<script>
-function toggleTheme() {
-    document.body.classList.toggle("dark");
-    localStorage.setItem(
-        "theme",
-        document.body.classList.contains("dark") ? "dark" : "light"
-    );
-}
+        {% block content %}{% endblock %}
+    </div>
 
-if (localStorage.getItem("theme") === "dark") {
-    document.body.classList.add("dark");
-}
-</script>
+    <!-- Footer -->
+    <div class="footer">
+        Campus Sustainability Analytics • Developed by Athidhya
+    </div>
+
+    <!-- Theme Script -->
+    <script>
+        function toggleTheme() {
+            document.body.classList.toggle("dark");
+            localStorage.setItem(
+                "theme",
+                document.body.classList.contains("dark") ? "dark" : "light"
+            );
+        }
+
+        if (localStorage.getItem("theme") === "dark") {
+            document.body.classList.add("dark");
+        }
+    </script>
 
 </body>
 </html>
